@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Aspect Ratio Overlay</title>
+		<style>
+			:root {
+				--panel: #111827;
+				--text: #e5e7eb;
+				--muted: #94a3b8;
+				--border: rgba(255, 255, 255, 0.2);
+				--stroke-alpha: 1;
+				--stroke-width: 2px;
+				--accent: #60a5fa;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				height: 100%;
+			}
+			body {
+				margin: 0;
+				background: linear-gradient(135deg, #0b1224, #0a0f1a 60%) fixed;
+				color: var(--text);
+				font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial,
+					sans-serif;
+			}
+			.page {
+				display: grid;
+				grid-template-columns: 340px 1fr;
+				gap: 16px;
+				height: 100%;
+				padding: 16px;
+			}
+			@media (max-width: 900px) {
+				.page {
+					grid-template-columns: 1fr;
+					grid-template-rows: auto 1fr;
+				}
+			}
+
+			/* Panel */
+			.panel {
+				background: var(--panel);
+				border: 1px solid var(--border);
+				border-radius: 12px;
+				padding: 16px;
+				display: flex;
+				gap: 14px;
+				flex-direction: column;
+				overflow-y: auto;
+			}
+			.panel h1 {
+				font-size: 16px;
+				margin: 0 0 2px;
+			}
+			.sub {
+				font-weight: 600;
+				margin: 4px 0;
+			}
+			.hint {
+				color: var(--muted);
+				font-size: 12px;
+				margin-top: -2px;
+			}
+			.row {
+				display: flex;
+				gap: 8px;
+				align-items: center;
+				flex-wrap: wrap;
+			}
+			input[type='file'] {
+				width: 100%;
+			}
+			.list {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 8px;
+			}
+			.tag {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				padding: 8px;
+				background: #0b1220;
+				border: 1px solid var(--border);
+				border-radius: 8px;
+			}
+			.swatch {
+				width: 14px;
+				height: 14px;
+				border-radius: 3px;
+				border: 1px solid rgba(255, 255, 255, 0.35);
+			}
+			.legend {
+				display: flex;
+				gap: 8px;
+				flex-wrap: wrap;
+				font-size: 12px;
+				color: var(--muted);
+			}
+			.legend .chip {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				padding: 6px 10px;
+				border: 1px solid var(--border);
+				border-radius: 999px;
+				cursor: pointer;
+				color: var(--text); 
+				user-select: none;
+				background: transparent;
+			}
+			.legend .chip:focus {
+				outline: 2px solid var(--accent);
+				outline-offset: 2px;
+			}
+			.legend .chip .sq {
+				width: 12px;
+				height: 12px;
+				border-radius: 3px;
+				border: 1px solid rgba(255, 255, 255, 0.35);
+			}
+			.legend .chip.is-active {
+				border-color: var(--accent);
+				box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25) inset;
+			}
+			.slider {
+				width: 100%;
+			}
+
+			/* Calculator */
+			.calc {
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+				border-top: 1px solid var(--border);
+				padding-top: 10px;
+				margin-top: 4px;
+			}
+			.calc .grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 10px;
+			}
+			.calc input[type='number'],
+			.calc input[type='text'] {
+				width: 100%;
+				padding: 8px 10px;
+				border-radius: 8px;
+				border: 1px solid var(--border);
+				background: #0b1220;
+				color: var(--text);
+			}
+			.calc .formula {
+				font-size: 12px;
+				color: var(--muted);
+				margin-top: -2px;
+			}
+
+			/* Stage */
+			.stage {
+				position: relative;
+				overflow: auto;
+				background: linear-gradient(
+							0deg,
+							rgba(255, 255, 255, 0.04) 1px,
+							transparent 1px
+						)
+						0 0/100% 24px,
+					linear-gradient(
+							90deg,
+							rgba(255, 255, 255, 0.04) 1px,
+							transparent 1px
+						)
+						0 0/24px 100%,
+					#0b1020;
+				border: 1px solid var(--border);
+				border-radius: 12px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				min-height: 340px;
+			}
+			.image-wrap {
+				position: relative;
+				display: inline-block;
+				max-width: 100%;
+			}
+			.image-wrap img {
+				max-width: 100%;
+				height: auto;
+				display: block;
+				border-radius: 8px;
+				box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+			}
+			.overlay {
+				position: absolute;
+				left: 0;
+				top: 0;
+				right: 0;
+				bottom: 0;
+				pointer-events: none;
+			}
+			.frame {
+				position: absolute;
+				left: 0;
+				top: 0;
+				background: transparent;
+				border: var(--stroke-width) solid currentColor;
+				filter: opacity(var(--stroke-alpha));
+			}
+			.frame::after {
+				content: attr(data-label);
+				position: absolute;
+				right: 6px;
+				bottom: 6px;
+				background: rgba(0, 0, 0, 0.55);
+				color: #fff;
+				font-weight: 600;
+				font-size: 12px;
+				padding: 3px 6px;
+				border-radius: 6px;
+				letter-spacing: 0.2px;
+			}
+			.frame.is-hidden {
+				display: none;
+			}
+			.footer-note {
+				color: var(--muted);
+				font-size: 12px;
+				text-align: center;
+				margin-top: 6px;
+			}
+			.codepen {
+				margin: auto 0 0;
+			}
+			.codepen a {
+				color: white;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="page">
+			<aside class="panel" aria-label="Controls">
+				<h1>Aspect Ratio Overlay</h1>
+
+				<div class="row">
+					<input id="file" type="file" accept="image/*" />
+				</div>
+
+				<div class="row">
+					<input id="portrait" type="checkbox" />
+					<label for="portrait">Portrait mode (invert ratios)</label>
+				</div>
+
+				<div class="row">
+					<input id="centered" type="checkbox" />
+					<label for="centered">Centre overlays</label>
+				</div>
+
+				<div class="row">
+					<label for="thickness">Outline width</label>
+					<input
+						id="thickness"
+						class="slider"
+						type="range"
+						min="1"
+						max="6"
+						step="1"
+						value="2"
+					/>
+					<span id="thicknessVal">2px</span>
+				</div>
+				<div class="row">
+					<label for="opacity">Outline opacity</label>
+					<input
+						id="opacity"
+						class="slider"
+						type="range"
+						min="0.2"
+						max="1"
+						step="0.05"
+						value="1"
+					/>
+					<span id="opacityVal">1.00</span>
+				</div>
+
+				<div class="sub">Show ratios</div>
+				<div id="ratioList" class="list"></div>
+
+				<div class="sub">Quick calculator (click a chip ↓)</div>
+				<div id="legend" class="legend"></div>
+
+				<div class="calc" id="calc" aria-live="polite">
+					<div class="row">
+						<span class="hint" id="calcTitle"
+							>No ratio selected</span
+						>
+					</div>
+					<div class="grid">
+						<div>
+							<label for="w2">Width</label>
+							<input
+								id="w2"
+								type="number"
+								inputmode="decimal"
+								placeholder="e.g. 953"
+								disabled
+							/>
+						</div>
+						<div>
+							<label for="h2">Height</label>
+							<input
+								id="h2"
+								type="text"
+								readonly
+								placeholder="—"
+							/>
+						</div>
+					</div>
+					<div class="formula" id="formula"></div>
+					<div class="row">
+						<input id="round" type="checkbox" checked />
+						<label for="round">Round to nearest whole number</label>
+					</div>
+				</div>
+
+				<p class="codepen">
+					Also editable on
+					<a
+						href="https://codepen.io/shley/pen/yyeWjgE"
+						target="_blank"
+						>Codepen</a
+					>.
+				</p>
+			</aside>
+
+			<main class="stage">
+				<div class="image-wrap" id="wrap" style="display: none">
+					<img id="img" alt="Uploaded image" />
+					<div class="overlay" id="overlay" aria-hidden="true"></div>
+				</div>
+				<div id="placeholder" class="footer-note">
+					Upload an image to begin. Everything stays in your browser.
+				</div>
+			</main>
+		</div>
+
+		<script>
+			const RATIOS = [
+				{ label: '1:1', w: 1, h: 1, color: '#22c55e' },
+				{ label: '4:3', w: 4, h: 3, color: '#ef4444' },
+				{ label: '3:2', w: 3, h: 2, color: '#84cc16' },
+				{ label: '16:10', w: 16, h: 10, color: '#a78bfa' },
+				{ label: '16:9', w: 16, h: 9, color: '#60a5fa' },
+				{ label: '21:9', w: 21, h: 9, color: '#f59e0b' },
+				{ label: '5:4', w: 5, h: 4, color: '#f97316' },
+				{ label: '2:1', w: 2, h: 1, color: '#10b981' },
+			];
+
+			const STORAGE_KEY = 'aspectOverlaySettings';
+
+			function loadSettings() {
+				try {
+					const raw = localStorage.getItem(STORAGE_KEY);
+					return raw ? JSON.parse(raw) : {};
+				} catch (e) {
+					return {};
+				}
+			}
+
+			function saveSettings() {
+				try {
+					const payload = {
+						portrait: state.portrait,
+						centered: state.centered,
+						visible: [...state.visible],
+						selected: state.selected,
+						round: roundChk.checked,
+						opacity: parseFloat(opacityInp.value),
+						thickness: parseInt(thickInp.value, 10),
+					};
+					localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+				} catch (e) {
+					// fail silently
+				}
+			}
+
+			// Elements
+			const fileInput = document.getElementById('file'),
+				img = document.getElementById('img'),
+				wrap = document.getElementById('wrap'),
+				overlay = document.getElementById('overlay'),
+				placeholder = document.getElementById('placeholder'),
+				ratioList = document.getElementById('ratioList'),
+				legend = document.getElementById('legend'),
+				portraitChk = document.getElementById('portrait'),
+				centerChk = document.getElementById('centered'),
+				opacityInp = document.getElementById('opacity'),
+				opacityVal = document.getElementById('opacityVal'),
+				thickInp = document.getElementById('thickness'),
+				thickVal = document.getElementById('thicknessVal');
+
+			const calcTitle = document.getElementById('calcTitle'),
+				w2 = document.getElementById('w2'),
+				h2 = document.getElementById('h2'),
+				roundChk = document.getElementById('round'),
+				formula = document.getElementById('formula');
+
+			const saved = loadSettings();
+
+			// State
+			const state = {
+				visible: new Set(
+					saved.visible && Array.isArray(saved.visible)
+						? saved.visible
+						: RATIOS.map((r) => r.label)
+				),
+				portrait: !!saved.portrait,
+				centered: !!saved.centered,
+				selected:
+					typeof saved.selected === 'number' ? saved.selected : null,
+			};
+
+			// Build visibility checkboxes + chips
+			(function () {
+				ratioList.innerHTML = '';
+				legend.innerHTML = '';
+				RATIOS.forEach((r, i) => {
+					const id = `ratio-${r.label.replace(':', '-')}`;
+					const tag = document.createElement('label');
+					tag.className = 'tag';
+					const checked = state.visible.has(r.label);
+					tag.innerHTML = `
+						<input type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
+						<span class="swatch" style="background:${r.color}"></span>
+						<span>${r.label}</span>
+					`;
+					const input = tag.querySelector('input');
+					input.addEventListener('change', (e) => {
+						if (e.target.checked) state.visible.add(r.label);
+						else state.visible.delete(r.label);
+						layoutFrames();
+						saveSettings();
+					});
+					ratioList.appendChild(tag);
+
+					const chip = document.createElement('button');
+					chip.type = 'button';
+					chip.className = 'chip';
+					chip.innerHTML = `<span class="sq" style="background:${r.color}"></span>${r.label}`;
+					if (state.selected === i) {
+						chip.classList.add('is-active');
+					}
+					chip.addEventListener('click', () => {
+						selectRatio(i);
+						saveSettings();
+					});
+					legend.appendChild(chip);
+				});
+			})();
+
+			// Build overlay once per image
+			function buildOverlay() {
+				overlay.innerHTML = '';
+				RATIOS.forEach((r) => {
+					const el = document.createElement('div');
+					el.className = 'frame';
+					el.dataset.label = r.label;
+					el.style.color = r.color;
+					overlay.appendChild(el);
+				});
+			}
+
+			// Layout frames (top-left or centered, fit inside)
+			function layoutFrames() {
+				const rect = img.getBoundingClientRect();
+				if (!rect.width || !rect.height) return;
+				overlay.style.width = rect.width + 'px';
+				overlay.style.height = rect.height + 'px';
+				const W = rect.width;
+				const H = rect.height;
+
+				document.querySelectorAll('.frame').forEach((el, i) => {
+					const r = RATIOS[i];
+					const ratio = state.portrait ? r.h / r.w : r.w / r.h; // width/height
+					let w = Math.min(W, H * ratio);
+					let h = w / ratio;
+
+					if (h > H) {
+						h = H;
+						w = H * ratio;
+					}
+
+					let left = 0;
+					let top = 0;
+
+					if (state.centered) {
+						left = (W - w) / 2;
+						top = (H - h) / 2;
+					}
+
+					el.style.left = left + 'px';
+					el.style.top = top + 'px';
+					el.style.width = w + 'px';
+					el.style.height = h + 'px';
+
+					el.classList.toggle(
+						'is-hidden',
+						!state.visible.has(r.label)
+					);
+				});
+				updateCalc();
+			}
+
+			// Image upload
+			fileInput.addEventListener('change', (e) => {
+				const file = e.target.files?.[0];
+				if (!file) return;
+				const reader = new FileReader();
+				reader.onload = (evt) => {
+					img.onload = () => {
+						wrap.style.display = 'inline-block';
+						placeholder.style.display = 'none';
+						buildOverlay();
+						layoutFrames();
+					};
+					img.src = evt.target.result;
+				};
+				reader.readAsDataURL(file);
+			});
+
+			// Toggles / sliders
+			portraitChk.addEventListener('change', () => {
+				state.portrait = portraitChk.checked;
+				layoutFrames();
+				saveSettings();
+			});
+
+			centerChk.addEventListener('change', () => {
+				state.centered = centerChk.checked;
+				layoutFrames();
+				saveSettings();
+			});
+
+			opacityInp.addEventListener('input', () => {
+				const v = parseFloat(opacityInp.value);
+				opacityVal.textContent = v.toFixed(2);
+				document.documentElement.style.setProperty('--stroke-alpha', v);
+				saveSettings();
+			});
+
+			thickInp.addEventListener('input', () => {
+				const px = `${thickInp.value}px`;
+				thickVal.textContent = px;
+				document.documentElement.style.setProperty(
+					'--stroke-width',
+					px
+				);
+				saveSettings();
+			});
+
+			window.addEventListener('resize', layoutFrames);
+
+			// Calculator
+			function selectRatio(index) {
+				state.selected = index;
+				[...legend.children].forEach((el, i) =>
+					el.classList.toggle('is-active', i === index)
+				);
+				const r = RATIOS[index];
+				w2.disabled = false;
+				w2.focus();
+				calcTitle.textContent = `Selected ratio: ${r.label} ${
+					state.portrait ? '(portrait)' : ''
+				}`;
+				if (formula) {
+					formula.textContent = `W₁:H₁ = ${
+						state.portrait ? r.h + ':' + r.w : r.w + ':' + r.h
+					} ⇒ H₂ = W₂ × (H₁ / W₁)`;
+				}
+				updateCalc();
+			}
+
+			function updateCalc() {
+				if (state.selected === null) return;
+				const r = RATIOS[state.selected];
+				const W1 = state.portrait ? r.h : r.w;
+				const H1 = state.portrait ? r.w : r.h;
+				const W2 = parseFloat(w2.value);
+				if (Number.isFinite(W2)) {
+					let h = W2 * (H1 / W1);
+					h = roundChk.checked
+						? Math.round(h)
+						: Math.round(h * 100) / 100;
+					h2.value = h;
+				} else {
+					h2.value = '';
+				}
+			}
+
+			w2.addEventListener('input', () => {
+				updateCalc();
+				saveSettings();
+			});
+
+			roundChk.addEventListener('change', () => {
+				updateCalc();
+				saveSettings();
+			});
+
+			// Apply saved settings to controls on load
+			(function initFromSaved() {
+				portraitChk.checked = state.portrait;
+				centerChk.checked = state.centered;
+
+				if (typeof saved.opacity === 'number') {
+					opacityInp.value = saved.opacity;
+					opacityVal.textContent = saved.opacity.toFixed(2);
+					document.documentElement.style.setProperty(
+						'--stroke-alpha',
+						saved.opacity
+					);
+				}
+
+				if (typeof saved.thickness === 'number') {
+					thickInp.value = saved.thickness;
+					const px = saved.thickness + 'px';
+					thickVal.textContent = px;
+					document.documentElement.style.setProperty(
+						'--stroke-width',
+						px
+					);
+				}
+
+				if (typeof saved.round === 'boolean') {
+					roundChk.checked = saved.round;
+				}
+
+				if (
+					state.selected !== null &&
+					state.selected >= 0 &&
+					state.selected < RATIOS.length
+				) {
+					selectRatio(state.selected);
+				}
+			})();
+		</script>
+	</body>
+</html>
